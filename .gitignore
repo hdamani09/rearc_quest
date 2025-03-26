@@ -1,0 +1,14 @@
+# Ignore all CSV files
+*.csv
+
+# Ignore all JSON files
+*.json
+
+# If you want to ignore files in all directories
+**/*.csv
+**/*.json
+
+data/
+venv/
+
+__pycache__/
