@@ -77,7 +77,7 @@ class PopulationDataDownloader:
     )
     def retrieve_population_data(self) -> str:
         try:
-            response = requests.get(self.base_url, headers=self.headers)
+            response = requests.get(self.base_url)
             if response.status_code == 200:
                 response_txt = response.text
                 logger.info("Obtained Population Data successfully!")

@@ -20,13 +20,13 @@ class Analysis:
 
         :param config_path: Path to the configuration YAML file
         """
-        config_dict = self.load_config_file(config_path)
+        config_dict = self.load_config_file(config_path)['analysis']
         self.bls_config = config_dict["bls"]
         self.population_config = config_dict["population"]
 
         # Fetch the relevant filepath from BLS download target directory
-        self.bls_download_dir = self.bls_config["download"].get("target_directory", "")
-        self.bls_filename = "pr.data.0.Current"
+        self.bls_download_dir = self.bls_config["download_dir"]
+        self.bls_filename = self.bls_config["file_name"]
         self.bls_data_current_filepath = (
             os.path.join(self.bls_download_dir, self.bls_filename)
             if self.bls_download_dir
@@ -34,12 +34,8 @@ class Analysis:
         )
 
         # Fetch the population json payload file path
-        self.population_json_dir = self.population_config["download"].get(
-            "json_directory", ""
-        )
-        self.population_json_filename = self.population_config["download"].get(
-            "json_filename"
-        )
+        self.population_json_dir = self.population_config["download_dir"]
+        self.population_json_filename = self.population_config["file_name"]
         self.population_json_filepath = (
             os.path.join(self.population_json_dir, self.population_json_filename)
             if self.population_json_dir
@@ -98,8 +94,8 @@ class Analysis:
                 return json.load(file)
         except Exception as e:
             raise e
-
-    def analyze(self):
+        
+    def prepare_bls_df(self):
         # Read and clean BLS Current Data
         bls_current_df = self.read_csv_as_dataframe(
             self.bls_data_current_filepath, delim="\t", d_type=str
@@ -111,6 +107,9 @@ class Analysis:
         bls_current_df["year"] = bls_current_df["year"].astype("int32")
         bls_current_df["value"] = bls_current_df["value"].astype(float).round(3)
 
+        return bls_current_df
+    
+    def prepare_population_df(self):
         # Fetch the US Population Data
         population_dict = self.read_json_as_obj(self.population_json_filepath)
         population_data_df = pd.json_normalize(population_dict["data"])
@@ -119,6 +118,9 @@ class Analysis:
         logger.info(population_data_df)
         logger.info(population_source_df)
 
+        return population_data_df
+
+    def calculate_population_metrics(self, population_data_df):
         # Compute Mean & Std Dev of Annual US Population (2013<=year<=2018)
         filtered_population_data_df = population_data_df[
             (population_data_df["ID Year"] >= 2013)
@@ -130,6 +132,7 @@ class Analysis:
         logger.info(f"Mean Population (2013-2018): {mean_population}")
         logger.info(f"Standard Deviation of Population (2013-2018): {std_population}")
 
+    def calculate_bls_metrics(self, bls_current_df):
         # Determine the best year per series_id by maximum value
         yearly_series_value_sum_df = (
             bls_current_df.groupby(["series_id", "year"])["value"].sum().reset_index()
@@ -142,6 +145,7 @@ class Analysis:
         )
         logger.info(series_best_year_by_value_df)
 
+    def calculate_combined_metrics(self, bls_current_df, population_data_df):
         # Merge BLS and Population Data for 'PRS30006032' Series for Q01 period
         filtered_bls_current_df = bls_current_df[
             (bls_current_df["series_id"] == "PRS30006032")
@@ -158,6 +162,13 @@ class Analysis:
         ].sort_values(by="year")
         logger.info(merged_bls_population_df)
 
+    def analyze(self):
+        bls_current_df = self.prepare_bls_df()
+        population_data_df = self.prepare_population_df()
+
+        self.calculate_population_metrics(population_data_df)
+        self.calculate_bls_metrics(bls_current_df)
+        self.calculate_combined_metrics(bls_current_df, population_data_df)
 
 def main():
     analysis = Analysis("config.yaml")

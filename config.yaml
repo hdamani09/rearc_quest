@@ -18,7 +18,7 @@ bls:
 
   # Download configuration
   download:
-    target_directory: 'hd_files/bls/data'  # Leave empty for current directory, or specify a full path like '/path/to/downloads/'
+    target_directory: &bls_target_dir 'hd_files/bls/data'  # Leave empty for current directory, or specify a full path like '/path/to/downloads/'
     max_workers: 3  # Concurrent download thread workers
   
   # File tracking configuration
@@ -32,7 +32,13 @@ population:
 
   # Download configuration
   download:
-    json_directory: 'hd_files/population/data'
-    json_filename: 'population.json'
+    json_directory: &population_json_dir 'hd_files/population/data'
+    json_filename: &population_json_filename 'population.json'
   
-
+analysis:
+  bls:
+    download_dir: *bls_target_dir
+    file_name: 'pr.data.0.Current'
+  population:
+    download_dir: *population_json_dir
+    file_name: *population_json_filename
