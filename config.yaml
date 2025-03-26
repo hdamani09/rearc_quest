@@ -18,12 +18,12 @@ bls:
 
   # Download configuration
   download:
-    target_directory: &bls_target_dir 'hd_files/bls/data'  # Leave empty for current directory, or specify a full path like '/path/to/downloads/'
+    target_directory: &bls_target_dir 'data/bls/raw'  # Leave empty for current directory, or specify a full path like '/path/to/downloads/'
     max_workers: 3  # Concurrent download thread workers
   
   # File tracking configuration
   file_tracking:
-    csv_directory: 'hd_files/bls/tracker'  # Leave empty for current directory, or specify a full path like '/path/to/tracking/'
+    csv_directory: 'data/bls/tracker'  # Leave empty for current directory, or specify a full path like '/path/to/tracking/'
     csv_filename: 'downloaded_files.csv'
 
 population:
@@ -32,7 +32,7 @@ population:
 
   # Download configuration
   download:
-    json_directory: &population_json_dir 'hd_files/population/data'
+    json_directory: &population_json_dir 'data/population/raw'
     json_filename: &population_json_filename 'population.json'
   
 analysis:

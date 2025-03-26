@@ -5,16 +5,13 @@ from datetime import datetime
 import re
 import concurrent.futures
 import pandas as pd
-import yaml
 from typing import List, Dict, Tuple
-import logging
+from src.utils.logger import get_logger
+from src.utils.file import load_config_file, download_file, delete_files
+from src.utils.dataframe import read_list_as_dataframe, read_csv_as_dataframe, write_dataframe_as_csv
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BLSDataDownloader:
@@ -24,7 +21,7 @@ class BLSDataDownloader:
 
         :param config_path: Path to the configuration YAML file
         """
-        config_dict = self.load_config_file(config_path)
+        config_dict = load_config_file(config_path)
         http_headers_dict = config_dict["common"]["headers"]
         self.config = config_dict["bls"]
 
@@ -66,98 +63,6 @@ class BLSDataDownloader:
             f"Last exception: {retry_state.outcome.exception()}"
         )
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=2, min=2),
-        before_sleep=log_retry_attempt,
-    )
-    def load_config_file(self, config_path):
-        """
-        Read config file
-
-        :param config_path: Path of the configuration file
-        """
-        with open(config_path, "r") as config_file:
-            config = yaml.safe_load(config_file)
-        return config
-
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=2, min=2),
-        before_sleep=log_retry_attempt,
-    )
-    def download_file(self, url, filename):
-        """
-        Download a file from a given URL
-
-        :param url: URL of the file to download
-        :param filename: Name of the file to save
-        """
-        # Determine full save path
-        save_path = (
-            os.path.join(self.download_dir, filename) if self.download_dir else filename
-        )
-
-        # Ensure directory exists if a specific directory is specified
-        if self.download_dir:
-            os.makedirs(self.download_dir, exist_ok=True)
-
-        response = requests.get(url, headers=self.headers)
-        with open(save_path, "wb") as f:
-            f.write(response.content)
-
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=2, min=2),
-        before_sleep=log_retry_attempt,
-    )
-    def delete_files(self, file_list):
-        """
-        Delete files from the given directory
-
-        :param file_list: List of file names to delete
-        :param directory: Directory path where files are located (default: current directory)
-        """
-        directory = "." if not self.download_dir else self.download_dir
-        for file_name in file_list:
-            file_path = os.path.join(directory, file_name)
-            if os.path.exists(file_path):
-                os.remove(file_path)
-                logger.debug(f"Deleted: {file_path}")
-            else:
-                logger.debug(f"File not found: {file_path}")
-
-    def read_list_as_dataframe(self, source_data) -> pd.DataFrame:
-        try:
-            return pd.DataFrame(source_data)
-        except Exception as e:
-            raise e
-
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=2, min=2),
-        before_sleep=log_retry_attempt,
-    )
-    def read_csv_as_dataframe(self, file_path, delim=",", d_type=None) -> pd.DataFrame:
-        try:
-            if not d_type:
-                return pd.read_csv(file_path, delimiter=delim)
-            else:
-                return pd.read_csv(file_path, delimiter=delim, dtype=d_type)
-        except Exception as e:
-            raise e
-
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=2, min=2),
-        before_sleep=log_retry_attempt,
-    )
-    def write_dataframe_as_csv(self, df, file_path):
-        try:
-            df.to_csv(file_path, index=False)
-        except Exception as e:
-            raise e
-
     def upsert_file_tracker(
         self, source_data, target_file
     ) -> Tuple[pd.DataFrame, List[Dict], List[str]]:
@@ -179,7 +84,7 @@ class BLSDataDownloader:
         updates = []
         deletions = []
         current_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        df_source = self.read_list_as_dataframe(source_data)
+        df_source = read_list_as_dataframe(source_data)
 
         # If target file does not exist, create it with initial data
         if not os.path.exists(target_file):
@@ -193,7 +98,7 @@ class BLSDataDownloader:
 
         try:
             # Load existing tracking data
-            df_target = self.read_csv_as_dataframe(target_file)
+            df_target = read_csv_as_dataframe(target_file)
             df_target.fillna({"end_timestamp": pd.NaT}, inplace=True)
 
             source_file_names = set(df_source["file_name"])
@@ -258,7 +163,7 @@ class BLSDataDownloader:
                 deletions = missing_files["file_name"].tolist()
 
             if updates:
-                df_updates = self.read_list_as_dataframe(updates)
+                df_updates = read_list_as_dataframe(updates)
                 df_target = pd.concat([df_target, df_updates], ignore_index=True)
 
             return df_target, updates, deletions
@@ -334,7 +239,7 @@ class BLSDataDownloader:
             max_workers=self.max_workers
         ) as executor:
             future_to_file = {
-                executor.submit(self.download_file, full_url, file_name): file_name
+                executor.submit(download_file, full_url, self.headers, self.download_dir, file_name): file_name
                 for full_url, file_name in files_to_download
             }
 
@@ -347,10 +252,12 @@ class BLSDataDownloader:
                     logger.info(f"Error downloading {file_name}: {e}")
 
         if updates or deletions:
-            self.write_dataframe_as_csv(df_updated_target, self.tracking_csv_file)
+            # TODO : Add check to see if the files are actually downloaded only then they should be reflected here
+            write_dataframe_as_csv(df_updated_target, self.tracking_csv_file)
             logger.info("Tracking file updated")
             if deletions:
-                self.delete_files(deletions)
+                directory = "." if not self.download_dir else self.download_dir
+                delete_files(directory, deletions)
         else:
             logger.info("No changes found in source hence tracking file is not updated")
 

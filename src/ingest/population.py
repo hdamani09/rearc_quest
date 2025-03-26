@@ -1,15 +1,10 @@
 import requests
-import json
-import logging
+from src.utils.logger import get_logger
 from tenacity import retry, stop_after_attempt, wait_exponential
 import os
-import yaml
+from src.utils.file import load_config_file, write_as_json
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PopulationDataDownloader:
@@ -19,7 +14,7 @@ class PopulationDataDownloader:
 
         :param config_path: Path to the configuration YAML file
         """
-        config_dict = self.load_config_file(config_path)
+        config_dict = load_config_file(config_path)
         http_headers_dict = config_dict["common"]["headers"]
         self.config = config_dict["population"]
 
@@ -60,21 +55,6 @@ class PopulationDataDownloader:
         wait=wait_exponential(multiplier=2, min=2),
         before_sleep=log_retry_attempt,
     )
-    def load_config_file(self, config_path):
-        """
-        Read config file from config.yaml
-
-        :param config_path: Path of the configuration file
-        """
-        with open(config_path, "r") as config_file:
-            config = yaml.safe_load(config_file)
-        return config
-
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=2, min=2),
-        before_sleep=log_retry_attempt,
-    )
     def retrieve_population_data(self) -> str:
         try:
             response = requests.get(self.base_url)
@@ -89,29 +69,10 @@ class PopulationDataDownloader:
         except Exception as e:
             raise e
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=2, min=2),
-        before_sleep=log_retry_attempt,
-    )
-    def write_as_json(self, payload_str):
-        try:
-            # Ensure directory exists if a specific directory is specified
-            if self.json_dir:
-                os.makedirs(self.json_dir, exist_ok=True)
-
-            with open(self.json_file, "w") as file:
-                json.dump(json.loads(payload_str), file, indent=4)
-            logger.info("Population file created/updated successfully!")
-
-        except Exception as e:
-            raise e
-
-
 def main():
     downloader = PopulationDataDownloader("config.yaml")
     payload = downloader.retrieve_population_data()
-    downloader.write_as_json(payload)
+    write_as_json(payload, downloader.json_file)
 
 
 if __name__ == "__main__":

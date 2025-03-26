@@ -1,16 +1,10 @@
 import pandas as pd
-import json
-import logging
+from src.utils.logger import get_logger
 import os
-from tenacity import retry, stop_after_attempt, wait_exponential
-import yaml
-from typing import Dict
+from src.utils.file import load_config_file, read_json_as_obj
+from src.utils.dataframe import read_csv_as_dataframe
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Analysis:
@@ -20,7 +14,7 @@ class Analysis:
 
         :param config_path: Path to the configuration YAML file
         """
-        config_dict = self.load_config_file(config_path)['analysis']
+        config_dict = load_config_file(config_path)['analysis']
         self.bls_config = config_dict["bls"]
         self.population_config = config_dict["population"]
 
@@ -41,63 +35,10 @@ class Analysis:
             if self.population_json_dir
             else self.population_json_filename
         )
-
-    def log_retry_attempt(retry_state):
-        """
-        Logging function to provide detailed information about retry attempts.
-
-        Args:
-            retry_state (RetryCallState): The current state of the retry attempt
-        """
-        logger.info(
-            f"Retry attempt {retry_state.attempt_number}. "
-            f"Last exception: {retry_state.outcome.exception()}"
-        )
-
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=2, min=2),
-        before_sleep=log_retry_attempt,
-    )
-    def load_config_file(self, config_path):
-        """
-        Read config file from config.yaml
-
-        :param config_path: Path of the configuration file
-        """
-        with open(config_path, "r") as config_file:
-            config = yaml.safe_load(config_file)
-        return config
-
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=2, min=2),
-        before_sleep=log_retry_attempt,
-    )
-    def read_csv_as_dataframe(self, file_path, delim=",", d_type=None) -> pd.DataFrame:
-        try:
-            if not d_type:
-                return pd.read_csv(file_path, delimiter=delim)
-            else:
-                return pd.read_csv(file_path, delimiter=delim, dtype=d_type)
-        except Exception as e:
-            raise e
-
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=2, min=2),
-        before_sleep=log_retry_attempt,
-    )
-    def read_json_as_obj(self, file_path):
-        try:
-            with open(file_path, "r") as file:
-                return json.load(file)
-        except Exception as e:
-            raise e
         
     def prepare_bls_df(self):
         # Read and clean BLS Current Data
-        bls_current_df = self.read_csv_as_dataframe(
+        bls_current_df = read_csv_as_dataframe(
             self.bls_data_current_filepath, delim="\t", d_type=str
         )
         bls_current_df.columns = bls_current_df.columns.str.strip()
@@ -111,7 +52,7 @@ class Analysis:
     
     def prepare_population_df(self):
         # Fetch the US Population Data
-        population_dict = self.read_json_as_obj(self.population_json_filepath)
+        population_dict = read_json_as_obj(self.population_json_filepath)
         population_data_df = pd.json_normalize(population_dict["data"])
         population_source_df = pd.json_normalize(population_dict["source"])
 
