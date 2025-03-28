@@ -6,4 +6,13 @@ logging.basicConfig(
 )
 
 def get_logger(classname):
+    """
+    Returns a central logger for the given class name
+
+    Args:
+        classname: The name of the class
+
+    Returns:
+        logging.Logger: The logger instance
+    """
     return logging.getLogger(classname)

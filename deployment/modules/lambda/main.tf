@@ -14,7 +14,6 @@ resource "aws_lambda_function" "lambda_function" {
   handler       = var.handler_path
   timeout = 120
 
-  # Use layers for dependencies
   layers = [
     aws_lambda_layer_version.dependencies_layer.arn,
     "arn:aws:lambda:us-east-1:336392948345:layer:AWSSDKPandas-Python313:1"
@@ -23,6 +22,7 @@ resource "aws_lambda_function" "lambda_function" {
   source_code_hash = filemd5(var.function_package_path)
   runtime = var.python_runtime
 
+  # Pass the aws_config.yaml path as env variable to lambda
   environment {
     variables = {
       config_path = var.runtime_config_path

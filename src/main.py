@@ -1,6 +1,5 @@
 import json
 import os
-import sys
 import logging
 from src.ingest.bls import main as bls_handler
 from src.ingest.population import main as population_handler
@@ -31,9 +30,11 @@ def lambda_handler(event, context):
         logger.info(f"Received run_type: {run_type}")
 
         if run_type == 'ingest':
+            # Runs the ingestion for both BLS and Population data
             bls_handler(config_path)
             population_handler(config_path)
         else:
+            # Runs the analysis on the ingested data
             analysis_handler(config_path)
 
         response = {

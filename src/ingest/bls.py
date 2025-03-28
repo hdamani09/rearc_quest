@@ -19,6 +19,7 @@ from src.utils.dataframe import (
     read_csv_as_dataframe,
     write_dataframe_as_csv,
 )
+from src.models.models import load_config_model, Config, BLSConfig
 from tenacity import retry, stop_after_attempt, wait_exponential
 import argparse
 
@@ -33,18 +34,12 @@ class BLSDataDownloader:
 
         :param config_path: Path to the configuration YAML file
         """
-        config_dict = load_config_file(config_path)
-        self.config = config_dict["bls"]
+        config_model: Config = load_config_model(load_config_file(config_path))
+        self.config: BLSConfig = config_model.bls
 
-        # Prepare HTTP headers from config
-        self.headers = self.config['headers']
-
-        # Base BLS URL configuration
-        self.base_url = self.config["base_url"]
-
-        # Determine tracking file path
-        tracking_dir = self.config["file_tracking"].get("csv_directory", "")
-        tracking_filename = self.config["file_tracking"].get("csv_filename")
+        # Determine tracking file path (to maintain changes for subsequent ingestion)
+        tracking_dir = self.config.file_tracking.csv_directory
+        tracking_filename = self.config.file_tracking.csv_filename
         self.tracking_csv_file = (
             os.path.join(tracking_dir, tracking_filename)
             if tracking_dir
@@ -53,18 +48,14 @@ class BLSDataDownloader:
         logger.info(f"Obtained file tracking path : {self.tracking_csv_file}")
 
         # Determine download target directory
-        self.download_dir = self.config["download"]["target_directory"]
+        self.download_dir = self.config.download.target_directory
         logger.info(f"Obtained download dir path : {self.download_dir}")
-
-        # Max workers for concurrent downloads
-        self.max_workers = self.config["download"]["max_workers"]
 
     def log_retry_attempt(retry_state):
         """
         Logging function to provide detailed information about retry attempts.
 
-        Args:
-            retry_state (RetryCallState): The current state of the retry attempt
+        :param retry_state (RetryCallState): The current state of the retry attempt
         """
         logger.info(
             f"Retry attempt {retry_state.attempt_number}. "
@@ -81,8 +72,8 @@ class BLSDataDownloader:
         :param target_file: Path to the CSV file where the tracking data is stored
 
         :return: A tuple containing:
-             - pd.DataFrame: Updated tracking data as a Pandas DataFrame.
-             - List[Dict]: A list of dictionaries capturing changes (new/updated file entries).
+             - pd.DataFrame: Updated tracking data as a Pandas DataFrame
+             - List[Dict]: A list of dictionaries capturing changes (new/updated file entries)
              - List[str]: A list of file names that were marked as inactive (due to absence in source)
         """
         updates = []
@@ -98,8 +89,6 @@ class BLSDataDownloader:
             df_source["start_timestamp"] = current_timestamp
             df_source["end_timestamp"] = None
             df_source["is_active"] = "Y"
-            write_dataframe_as_csv(df_source, target_file)
-            logger.info("Created initial tracking file")
             return df_source, df_source.to_dict(orient="records"), deletions
 
         try:
@@ -174,7 +163,7 @@ class BLSDataDownloader:
 
             return df_target, updates, deletions
         except Exception as e:
-            raise e
+            raise Exception(f"Failure during preparing BLS file tracker : {str(e)}")
 
     @retry(
         stop=stop_after_attempt(3),
@@ -182,11 +171,20 @@ class BLSDataDownloader:
         before_sleep=log_retry_attempt,
     )
     def retrieve_files_metadata(self):
+        """
+        Retrieves metadata of files from a specified directory URL
+
+        Returns:
+            list[dict]: A list of file metadata, each containing:
+                - file_name (str): The name of the file
+                - file_timestamp (str): The timestamp of the file
+                - full_url (str): The full URL of the file
+        """
         try:
             file_metadata_list = []
             response = requests.get(
-                f"{self.base_url}{self.config['scraping']['directory_path']}",
-                headers=self.headers,
+                f"{self.config.base_url}{self.config.scraping.directory_path}",
+                headers=self.config.headers,
             )
             # Check if the request was successful
             if response.status_code == 200:
@@ -194,7 +192,7 @@ class BLSDataDownloader:
 
                 # Find all file links (they are in <a> tags)
                 pattern = re.compile(
-                    rf"{self.config['scraping']['file_regex_pattern']}"
+                    rf"{self.config.scraping.file_regex_pattern}"
                 )
 
                 # Iterate and check all the hyperlinks that are entries for files
@@ -205,7 +203,7 @@ class BLSDataDownloader:
                         file_timestamp = datetime.strptime(
                             f"{date_str} {time_str}", "%m/%d/%Y %I:%M %p"
                         )
-                        full_url = self.base_url + href
+                        full_url = self.config.base_url + href
 
                         file_metadata_list.append(
                             {
@@ -223,49 +221,50 @@ class BLSDataDownloader:
 
             return file_metadata_list
         except Exception as e:
-            logger.error(e)
-            raise e
+            raise Exception(f"Failure during reading BLS Directory : {str(e)}")
 
     def download_relevant_files(self):
         """
         Scrape and download files that have changed or are new
         """
-        files_to_download = []
-        file_metadata_list = self.retrieve_files_metadata()
+        try:
+            files_to_download = []
+            file_metadata_list = self.retrieve_files_metadata()
 
-        # Perform SCD Type 2 Upsert on tracking data to identify what files to download
-        df_updated_target, updates, deletions = self.upsert_file_tracker(
-            file_metadata_list, self.tracking_csv_file
-        )
-        for update in updates:
-            files_to_download.append((update["full_url"], update["file_name"]))
+            # Perform SCD Type 2 Upsert on tracking data to identify what files to download
+            df_updated_target, updates, deletions = self.upsert_file_tracker(
+                file_metadata_list, self.tracking_csv_file
+            )
+            for update in updates:
+                files_to_download.append((update["full_url"], update["file_name"]))
 
-        # Optimize download by using threadpools
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=self.max_workers
-        ) as executor:
-            future_to_file = {
-                executor.submit(download_file, full_url, self.headers, self.download_dir, file_name): file_name
-                for full_url, file_name in files_to_download
-            }
+            # Optimize download by using thread pools
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=self.config.download.max_workers
+            ) as executor:
+                future_to_file = {
+                    executor.submit(download_file, full_url, self.config.headers, self.download_dir, file_name): file_name
+                    for full_url, file_name in files_to_download
+                }
 
-            for future in concurrent.futures.as_completed(future_to_file):
-                file_name = future_to_file[future]
-                try:
-                    future.result()
-                    logger.info(f"Successfully downloaded {file_name}")
-                except Exception as e:
-                    logger.info(f"Error downloading {file_name}: {e}")
+                for future in concurrent.futures.as_completed(future_to_file):
+                    file_name = future_to_file[future]
+                    try:
+                        future.result()
+                        logger.info(f"Successfully downloaded {file_name}")
+                    except Exception as e:
+                        logger.info(f"Error downloading {file_name}: {e}")
 
-        if updates or deletions:
-            # TODO : Add check to see if the files are actually downloaded only then they should be reflected here
-            write_dataframe_as_csv(df_updated_target, self.tracking_csv_file)
-            logger.info("Tracking file updated")
-            if deletions:
-                directory = "." if not self.download_dir else self.download_dir
-                delete_files(directory, deletions)
-        else:
-            logger.info("No changes found in source hence tracking file is not updated")
+            if updates or deletions:
+                write_dataframe_as_csv(df_updated_target, self.tracking_csv_file)
+                logger.info("Tracking file created/updated")
+                if deletions:
+                    directory = "." if not self.download_dir else self.download_dir
+                    delete_files(directory, deletions)
+            else:
+                logger.info("No changes found in source hence tracking file is not updated")
+        except Exception as e:
+            raise Exception(f"Failure during downloading BLS data files : {str(e)}")
 
 
 def main(config_path: str):

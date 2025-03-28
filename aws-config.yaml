@@ -1,3 +1,5 @@
+# This config is to run the e2e process either from local or on Lambda (using S3 paths)
+
 # Configuration for BLS Data Downloader
 bls:
   # Base URL for downloading files

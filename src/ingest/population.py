@@ -4,6 +4,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 import os
 import argparse
 from src.utils.file import load_config_file, write_as_json
+from src.models.models import load_config_model, Config, PopulationConfig
 
 logger = get_logger(__name__)
 
@@ -15,18 +16,12 @@ class PopulationDataDownloader:
 
         :param config_path: Path to the configuration YAML file
         """
-        config_dict = load_config_file(config_path)
-        self.config = config_dict["population"]
+        config_model: Config = load_config_model(load_config_file(config_path))
+        self.config: PopulationConfig = config_model.population
 
-        # Prepare HTTP headers from config
-        self.headers = self.config['headers']
-
-        # Base BLS URL configuration
-        self.base_url = self.config["base_url"]
-
-        # Determine json payload file path
-        self.json_dir = self.config["download"].get("json_directory", "")
-        self.json_filename = self.config["download"].get("json_filename")
+        # Determine json payload file path for saving
+        self.json_dir = self.config.download.json_directory
+        self.json_filename = self.config.download.json_filename
         self.json_file = (
             os.path.join(self.json_dir, self.json_filename)
             if self.json_dir
@@ -38,8 +33,7 @@ class PopulationDataDownloader:
         """
         Logging function to provide detailed information about retry attempts.
 
-        Args:
-            retry_state (RetryCallState): The current state of the retry attempt
+        :param retry_state (RetryCallState): The current state of the retry attempt
         """
         logger.info(
             f"Retry attempt {retry_state.attempt_number}. "
@@ -52,8 +46,14 @@ class PopulationDataDownloader:
         before_sleep=log_retry_attempt,
     )
     def retrieve_population_data(self) -> str:
+        """
+        Fetches population data from the configured URL
+
+        Returns:
+            str: The retrieved population data as string
+        """
         try:
-            response = requests.get(self.base_url, headers=self.headers)
+            response = requests.get(self.config.base_url, headers=self.config.headers)
             response_txt = response.text
             if response.status_code == 200:
                 logger.info("Obtained Population Data successfully!")

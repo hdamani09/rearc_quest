@@ -9,6 +9,8 @@ PACKAGE_DIR = artifacts
 DEPENDENCIES_PACKAGE_NAME = lambda_layers.zip
 FUNCTION_PACKAGE_NAME = lambda_function.zip
 
+DEPLOYMENT_DIR = ../deployment
+
 help:
 	@echo "Available commands:"
 	@echo ""
@@ -19,6 +21,8 @@ help:
 	@echo "  make ingest-bls CONFIG=local-config.yaml       	- Run the BLS ingestion module"
 	@echo "  make ingest-population CONFIG=local-config.yaml 	- Run the Population ingestion module"
 	@echo "  make run-analysis CONFIG=local-config.yaml     	- Run the analysis module"
+	@echo "  make package                          			- Creates lambda_function.zip & lambda_layers.zip for deployment"
+	@echo "  make deploy                          			- Deploys the terraform scripts to AWS infra"
 	@echo "  make help                          			- Show available commands"
 
 
@@ -51,30 +55,30 @@ ingest-population:
 run-analysis:
 	@${PYTHON} -m src.analyze.analysis --config ${CONFIG}
 
-
 package:
 	zip -g $(FUNCTION_PACKAGE_NAME) -r ${LAMBDA_FUNCTION_DIR}
+	mv $(FUNCTION_PACKAGE_NAME) $(PACKAGE_DIR)/
+
 	$(PYTHON) -m venv $(LAMBDA_VENV_DIR)
 	$(LAMBDA_VENV_DIR)/bin/pip install -U pip
 	$(LAMBDA_VENV_DIR)/bin/pip install -r base-requirements.txt
 
+	# Make the package light by removing irrelevant files
 	rm -rf $(LAMBDA_VENV_DIR)/bin
 	rm -rf $(LAMBDA_VENV_DIR)/etc
 	rm -rf $(LAMBDA_VENV_DIR)/include
 	rm $(LAMBDA_VENV_DIR)/pyvenv.cfg
 	cd $(LAMBDA_VENV_DIR)/lib/$(PYTHON)/site-packages
-	find . -type d -name "tests" -exec rm -rf {} +
-	find . -type d -name "*.dist-info" -exec rm -rf {} +
-	find . -type f -name "*.pyc" -delete
-	find . -type f -name "*.pyo" -delete
-	find . -type f -name "*.pyd" -delete
 	cd $(CURDIR)
 
 	# Adding python packages
 	zip -qr $(DEPENDENCIES_PACKAGE_NAME) $(LAMBDA_VENV_DIR)/
 	rm -rf ${LAMBDA_VENV_DIR}
-	mv $(FUNCTION_PACKAGE_NAME) $(PACKAGE_DIR)/
 	mv $(DEPENDENCIES_PACKAGE_NAME) $(PACKAGE_DIR)/
 
+deploy:
+	cd $(DEPLOYMENT_DIR)
+	terraform apply
 
-.PHONY: venv install activate clean run
+
+.PHONY: venv install activate clean ingest-bls ingest-population run-analysis package deploy

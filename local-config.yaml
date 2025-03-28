@@ -1,3 +1,5 @@
+# This config is to run the e2e process locally without AWS infrastructure
+
 # Configuration for BLS Data Downloader
 bls:
   # Base URL for downloading files

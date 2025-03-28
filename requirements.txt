@@ -1,3 +1,4 @@
+# Complete set of requirements.txt file required to create venv
 -r base-requirements.txt
 boto3==1.37.21
 bs4==0.0.2

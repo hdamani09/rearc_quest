@@ -14,8 +14,7 @@ def log_retry_attempt(retry_state):
     """
     Logging function to provide detailed information about retry attempts.
 
-    Args:
-        retry_state (RetryCallState): The current state of the retry attempt
+    :param retry_state (RetryCallState): The current state of the retry attempt
     """
     logger.info(
         f"Retry attempt {retry_state.attempt_number}"
@@ -60,23 +59,26 @@ def download_file(url, headers, directory, filename):
     :param directory: Local directory or S3 bucket prefix
     :param filename: Name of the file to save
     """
-    response = requests.get(url, headers=headers if headers else {})
-    response.raise_for_status()
+    try:
+        response = requests.get(url, headers=headers if headers else {})
+        response.raise_for_status()
 
-    if directory.startswith("s3://"):
-        bucket, prefix = get_bucket_and_key(directory)
-        s3_key = f"{prefix}/{filename}" if prefix else filename
+        if directory.startswith("s3://"):
+            bucket, prefix = get_bucket_and_key(directory)
+            s3_key = f"{prefix}/{filename}" if prefix else filename
 
-        s3.put_object(Bucket=bucket, Key=s3_key, Body=response.content)
-        logger.info(f"File downloaded and saved to s3://{bucket}/{s3_key}")
-    else:
-        save_path = os.path.join(directory, filename) if directory else filename
-        os.makedirs(directory, exist_ok=True) if directory else None
+            s3.put_object(Bucket=bucket, Key=s3_key, Body=response.content)
+            logger.info(f"File downloaded and saved to s3://{bucket}/{s3_key}")
+        else:
+            save_path = os.path.join(directory, filename) if directory else filename
+            os.makedirs(directory, exist_ok=True) if directory else None
 
-        with open(save_path, "wb") as f:
-            f.write(response.content)
+            with open(save_path, "wb") as f:
+                f.write(response.content)
 
-        logger.info(f"File downloaded and saved to {save_path}")
+            logger.info(f"File downloaded and saved to {save_path}")
+    except Exception as e:
+        raise Exception(f"Failed to download {url} to {directory}{filename}: {str(e)}")
 
 def ensure_target_dir(target_file):
     """
@@ -163,7 +165,7 @@ def read_json_as_obj(file_path):
             with open(file_path, "r") as file:
                 return json.load(file)
     except Exception as e:
-        raise Exception(f"Failed to read {file_path}: {str(e)}")
+        raise Exception(f"Failed to read JSON from {file_path}: {str(e)}")
         
 @retry(
     stop=stop_after_attempt(3),
@@ -191,4 +193,4 @@ def write_as_json(payload_str, filepath):
         logger.info("Population file created/updated successfully!")
 
     except Exception as e:
-        raise e
+        raise Exception(f"Failed to write JSON to {filepath}: {str(e)}")

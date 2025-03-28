@@ -12,8 +12,7 @@ def log_retry_attempt(retry_state):
     """
     Logging function to provide detailed information about retry attempts.
 
-    Args:
-        retry_state (RetryCallState): The current state of the retry attempt
+    :param retry_state (RetryCallState): The current state of the retry attempt
     """
     logger.info(
         f"Retry attempt {retry_state.attempt_number}"
@@ -21,10 +20,19 @@ def log_retry_attempt(retry_state):
     )
 
 def read_list_as_dataframe(source_data) -> pd.DataFrame:
+    """
+    Converts a list into a Pandas DataFrame.
+
+    Args:
+        source_data: The list to convert.
+
+    Returns:
+        pd.DataFrame: The resulting DataFrame.
+    """
     try:
         return pd.DataFrame(source_data)
     except Exception as e:
-        raise e
+        Exception(f"Failed to create dataframe from list: {str(e)}")
 
 @retry(
     stop=stop_after_attempt(3),
