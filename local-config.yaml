@@ -1,0 +1,60 @@
+# Configuration for BLS Data Downloader
+bls:
+  # Base URL for downloading files
+  base_url: 'https://download.bls.gov'
+
+  headers:
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'
+    'Accept-Language': 'en-US,en;q=0.9'
+    'Accept-Encoding': 'gzip, deflate, br'
+    'Sec-Ch-Ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"'
+    'Sec-Ch-Ua-Mobile': '?0'
+    'Sec-Ch-Ua-Platform': '"macOS"'
+    'Sec-Fetch-Dest': 'document'
+    'Sec-Fetch-Mode': 'navigate'
+    'Sec-Fetch-Site': 'none'
+    'Sec-Fetch-User': '?1'
+    'Cache-Control': 'max-age=0'
+    'Connection': 'keep-alive'
+
+  # Scraping configuration
+  scraping:
+    directory_path: '/pub/time.series/pr/'
+    file_regex_pattern: '(\d{1,2}/\d{1,2}/\d{4})\s+(\d{1,2}:\d{2}\s[APM]{2})\s+(\d+)\s+<a href=\"(.*?)\">(.*?)</a>'
+
+  # Download configuration
+  download:
+    target_directory: &bls_target_dir 'data/bls/raw'
+    max_workers: 3  # Concurrent download thread workers
+  
+  # File tracking configuration
+  file_tracking:
+    csv_directory: 'data/bls/tracker'
+    csv_filename: 'downloaded_files.csv'
+
+population:
+  # Base URL for downloading US population data
+  base_url: 'https://datausa.io/api/data?drilldowns=Nation&measures=Population'
+
+  headers:
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    'Accept': 'application/json'
+    'Accept-Language': 'en-US,en;q=0.9'
+    'Accept-Encoding': 'gzip, deflate, br'
+    'Connection': 'keep-alive'
+    'Referer': 'https://datausa.io/'
+    'Origin': 'https://datausa.io'
+
+  # Download configuration
+  download:
+    json_directory: &population_json_dir 'data/population/raw'
+    json_filename: &population_json_filename 'population.json'
+  
+analysis:
+  bls:
+    download_dir: *bls_target_dir
+    file_name: 'pr.data.0.Current'
+  population:
+    download_dir: *population_json_dir
+    file_name: *population_json_filename

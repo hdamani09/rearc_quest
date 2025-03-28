@@ -3,6 +3,7 @@ from src.utils.logger import get_logger
 import os
 from src.utils.file import load_config_file, read_json_as_obj
 from src.utils.dataframe import read_csv_as_dataframe
+import argparse
 
 logger = get_logger(__name__)
 
@@ -26,6 +27,7 @@ class Analysis:
             if self.bls_download_dir
             else self.bls_filename
         )
+        logger.info(f"Obtained bls current filepath : {self.bls_data_current_filepath}")
 
         # Fetch the population json payload file path
         self.population_json_dir = self.population_config["download_dir"]
@@ -35,6 +37,7 @@ class Analysis:
             if self.population_json_dir
             else self.population_json_filename
         )
+        logger.info(f"Obtained population json path : {self.population_json_filepath}")
         
     def prepare_bls_df(self):
         # Read and clean BLS Current Data
@@ -111,10 +114,14 @@ class Analysis:
         self.calculate_bls_metrics(bls_current_df)
         self.calculate_combined_metrics(bls_current_df, population_data_df)
 
-def main():
-    analysis = Analysis("config.yaml")
+def main(config_path: str):
+    analysis = Analysis(config_path)
     analysis.analyze()
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, required=True)
+    args = parser.parse_args()
+    
+    main(args.config)

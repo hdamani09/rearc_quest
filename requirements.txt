@@ -1,6 +1,6 @@
-PyYAML==6.0.2
-requests==2.32.3
+-r base-requirements.txt
+boto3==1.37.21
 bs4==0.0.2
 pandas==2.2.3
-tenacity==9.0.0
 typing_extensions==4.12.2
+requests==2.32.3

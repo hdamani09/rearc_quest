@@ -7,9 +7,21 @@ import concurrent.futures
 import pandas as pd
 from typing import List, Dict, Tuple
 from src.utils.logger import get_logger
-from src.utils.file import load_config_file, download_file, delete_files
-from src.utils.dataframe import read_list_as_dataframe, read_csv_as_dataframe, write_dataframe_as_csv
+from src.utils.file import (
+    load_config_file,
+    download_file,
+    delete_files,
+    ensure_target_dir,
+    file_exists,
+)
+from src.utils.dataframe import (
+    read_list_as_dataframe,
+    read_csv_as_dataframe,
+    write_dataframe_as_csv,
+)
 from tenacity import retry, stop_after_attempt, wait_exponential
+import argparse
+
 
 logger = get_logger(__name__)
 
@@ -22,16 +34,10 @@ class BLSDataDownloader:
         :param config_path: Path to the configuration YAML file
         """
         config_dict = load_config_file(config_path)
-        http_headers_dict = config_dict["common"]["headers"]
         self.config = config_dict["bls"]
 
         # Prepare HTTP headers from config
-        self.headers = {
-            "User-Agent": http_headers_dict["user_agent"],
-            "sec-ch-ua": http_headers_dict["sec_ch_ua"],
-            "sec-ch-ua-mobile": http_headers_dict["sec_ch_ua_mobile"],
-            "sec-ch-ua-platform": http_headers_dict["sec_ch_ua_platform"],
-        }
+        self.headers = self.config['headers']
 
         # Base BLS URL configuration
         self.base_url = self.config["base_url"]
@@ -44,9 +50,11 @@ class BLSDataDownloader:
             if tracking_dir
             else tracking_filename
         )
+        logger.info(f"Obtained file tracking path : {self.tracking_csv_file}")
 
         # Determine download target directory
-        self.download_dir = self.config["download"].get("target_directory", "")
+        self.download_dir = self.config["download"]["target_directory"]
+        logger.info(f"Obtained download dir path : {self.download_dir}")
 
         # Max workers for concurrent downloads
         self.max_workers = self.config["download"]["max_workers"]
@@ -77,22 +85,20 @@ class BLSDataDownloader:
              - List[Dict]: A list of dictionaries capturing changes (new/updated file entries).
              - List[str]: A list of file names that were marked as inactive (due to absence in source)
         """
-        target_dir = os.path.dirname(target_file)
-        if target_dir:
-            os.makedirs(target_dir, exist_ok=True)
-
         updates = []
         deletions = []
         current_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         df_source = read_list_as_dataframe(source_data)
 
+        ensure_target_dir(target_file)
+
         # If target file does not exist, create it with initial data
-        if not os.path.exists(target_file):
+        if not file_exists(target_file):
             logger.info("Tracking file doesn't exist")
             df_source["start_timestamp"] = current_timestamp
             df_source["end_timestamp"] = None
             df_source["is_active"] = "Y"
-            df_source.to_csv(target_file, index=False)
+            write_dataframe_as_csv(df_source, target_file)
             logger.info("Created initial tracking file")
             return df_source, df_source.to_dict(orient="records"), deletions
 
@@ -262,10 +268,14 @@ class BLSDataDownloader:
             logger.info("No changes found in source hence tracking file is not updated")
 
 
-def main():
-    downloader = BLSDataDownloader("config.yaml")
+def main(config_path: str):
+    downloader = BLSDataDownloader(config_path)
     downloader.download_relevant_files()
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__":    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, required=True)
+    args = parser.parse_args()
+    
+    main(args.config)
