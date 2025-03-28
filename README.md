@@ -64,10 +64,10 @@ rearc_quest/
 1. **Refer to help command:** `make help`
 2. **Prepare local environment:** `make install`
 3. **Activate virtual environment:** `make activate`
-4. **Run BLS data ingestion:** `make ingest-bls`
-5. **Run Population data ingestion:** `make ingest-population`
-6. **Run data analysis:** `make run-analysis`
-7. **Package code for Lambda deployment:** `make package`
+4. **Run BLS data ingestion (data and tracking file created in data/bls/):** `make ingest-bls`
+5. **Run Population data ingestion (data ingested in data/population/):** `make ingest-population`
+6. **Run data analysis (only logged):** `make run-analysis`
+7. **Package code for Lambda deployment (packages created in artifacts/):** `make package`
 8. **Deploy AWS infrastructure:** `make deploy`
 8. **Trigger Lambda execution manually or wait for EventBridge schedule (12 PM UTC).**
 
