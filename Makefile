@@ -21,7 +21,7 @@ help:
 	@echo "  make ingest-bls CONFIG=local-config.yaml       	- Run the BLS ingestion module"
 	@echo "  make ingest-population CONFIG=local-config.yaml 	- Run the Population ingestion module"
 	@echo "  make run-analysis CONFIG=local-config.yaml     	- Run the analysis module"
-	@echo "  make package                          			- Creates lambda_function.zip & lambda_layers.zip for deployment"
+	@echo "  make package                          		- Creates lambda_function.zip & lambda_layers.zip for deployment"
 	@echo "  make deploy                          			- Deploys the terraform scripts to AWS infra"
 	@echo "  make help                          			- Show available commands"
 
