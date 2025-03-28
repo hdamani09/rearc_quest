@@ -64,20 +64,20 @@ rearc_quest/
 1. **Refer to help command:** `make help`
 2. **Prepare local environment:** `make install`
 3. **Activate virtual environment:** `make activate`
-4. **Run BLS data ingestion (data and tracking file created in data/bls/):** `make ingest-bls`
-5. **Run Population data ingestion (data ingested in data/population/):** `make ingest-population`
-6. **Run data analysis (only logged):** `make run-analysis`
-7. **Package code for Lambda deployment (packages created in artifacts/):** `make package`
+4. **Run BLS data ingestion** (data and tracking file created in data/bls/): `make ingest-bls`
+5. **Run Population data ingestion** (data ingested in data/population/): `make ingest-population`
+6. **Run data analysis** (only logged): `make run-analysis`
+7. **Package code for Lambda deployment** (packages created in artifacts/): `make package`
 8. **Deploy AWS infrastructure:** `make deploy`
-8. **Trigger Lambda execution manually or wait for EventBridge schedule (12 PM UTC).**
+8. **Trigger Lambda execution** (manually or wait for EventBridge schedule (12 PM UTC)).
 
 ## Execution Flow
 
 ![Execution Flow](execution_flow.png)
-- **Lambda execution (manual/EventBridge) → Triggers `run_type=ingest` mode → BLS & Population data ingested into S3.**
-- **Config validation ensures integrity before ingestion or analysis.**
-- **BLS ingestion maintains an SCD Type 2 tracking file to track data changes and only ingest relevant data to keep the source and target in sync.**
+- **Lambda execution** (manual/EventBridge) → **Triggers `run_type=ingest` mode** → **BLS & Population data ingestion into S3.**
+- **Config validation** ensures integrity before ingestion or analysis.
+- **BLS ingestion** maintains an **SCD Type 2 tracking file** to track data changes and only ingest relevant data to keep the source and target in **sync.**
 - **S3 event notification triggers SQS upon `population.json` update.**
 - **SQS triggers Lambda for analysis, identified via `run_type=analyze`.**
-- **Analysis results are logged in CloudWatch.**
-- **Robust exception handling ensures clear debugging messages.**
+- **Analysis results** are logged in **CloudWatch.**
+- **Robust exception handling** ensures clear debugging messages.
