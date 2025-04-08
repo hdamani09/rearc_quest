@@ -9,7 +9,7 @@ PACKAGE_DIR = artifacts
 DEPENDENCIES_PACKAGE_NAME = lambda_layers.zip
 FUNCTION_PACKAGE_NAME = lambda_function.zip
 
-DEPLOYMENT_DIR = ../deployment
+DEPLOYMENT_DIR = deployment
 
 help:
 	@echo "Available commands:"
