@@ -54,7 +54,7 @@ rearc_quest/
   - **Lambda**: Runs ingestion and analysis
   - **IAM and Policies**: Provides necessary permissions and accesses
 - Deploys artifacts (code and dependencies) to Lambda.
-- Restricted Public access to `s3://dev-rearc-bucket/data/` which can be listed via:
+- (DISABLED NOW) Restricted Public access to `s3://dev-rearc-bucket/data/` which can be listed via:
 
   ```sh
   aws s3 ls s3://dev-rearc-bucket/data/ --no-sign-request
